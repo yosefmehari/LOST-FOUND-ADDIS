@@ -1,43 +1,27 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
+import { app } from "./app.js";
+import { env } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
 
-const app = express();
-const PORT = Number(process.env.PORT) || 5000;
-
-app.use(cors());
-app.use(express.json());
-
-app.get("/api/health", async (_req, res) => {
-  try {
-    // Verify database connectivity
-    await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      success: true,
-      message: "Lost & Found Addis API is running",
-      database: "connected",
-    });
-  } catch (error) {
-    res.status(200).json({
-      success: true,
-      message: "Lost & Found Addis API is running",
-      database: "disconnected",
-    });
-  }
+const server = app.listen(env.PORT, () => {
+  console.log(`🚀 Lost & Found Addis backend running at http://localhost:${env.PORT}`);
+  console.log(`⚡ Allowed frontend origin: ${env.FRONTEND_URL}`);
+  console.log(`🩺 Health check at http://localhost:${env.PORT}/api/health`);
 });
 
 // Graceful shutdown handling
-process.on("SIGINT", async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+async function shutdown(signal: string) {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+  server.close(async () => {
+    try {
+      await prisma.$disconnect();
+      console.log("Database disconnected. Server terminated cleanly.");
+      process.exit(0);
+    } catch (err) {
+      console.error("Error during database disconnection:", err);
+      process.exit(1);
+    }
+  });
+}
 
-process.on("SIGTERM", async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
-
-app.listen(PORT, () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
-});
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

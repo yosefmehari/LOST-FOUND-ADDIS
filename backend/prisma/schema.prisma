@@ -1,4 +1,4 @@
-// Lost & Found Addis - Prisma Schema
+// Lost & Found Addis - Comprehensive Prisma Schema
 // Documentation: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -10,43 +10,133 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ItemStatus {
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ItemType {
   LOST
   FOUND
+}
+
+enum ItemStatus {
+  OPEN
   CLAIMED
   RETURNED
+  ARCHIVED
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String   // Securely hashed password
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  passwordHash   String
+  role           Role           @default(USER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  // A user can report multiple items
-  items     Item[]
+  items          Item[]
+  claims         Claim[]        @relation("ClaimantClaims")
+  reviewedClaims Claim[]        @relation("ReviewerClaims")
+  notifications  Notification[]
+  reportsFiled   Report[]       @relation("ReporterReports")
 }
 
 model Item {
-  id          String     @id @default(cuid())
-  title       String
-  description String
-  category    String
-  location    String
-  status      ItemStatus
-  imageUrl    String?
-  contactInfo String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id           String      @id @default(cuid())
+  title        String
+  description  String
+  category     String
+  type         ItemType
+  status       ItemStatus  @default(OPEN)
+  location     String
+  latitude     Float?
+  longitude    Float?
+  dateOccurred DateTime    @default(now())
+  imageUrl     String?
+  contactInfo  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
-  // Foreign key referencing User
-  userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Indexes to optimize querying by status, category, and user
+  claims       Claim[]
+  reports      Report[]
+
+  @@index([type])
   @@index([status])
   @@index([category])
+  @@index([location])
   @@index([userId])
+}
+
+model Claim {
+  id                String      @id @default(cuid())
+  message           String
+  status            ClaimStatus @default(PENDING)
+  verificationNotes String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  itemId            String
+  item              Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  claimantId        String
+  claimant          User        @relation("ClaimantClaims", fields: [claimantId], references: [id], onDelete: Cascade)
+
+  reviewerId        String?
+  reviewer          User?       @relation("ReviewerClaims", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  // Prevent duplicate claims from the same claimant on an item
+  @@unique([itemId, claimantId])
+  @@index([itemId])
+  @@index([claimantId])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reason     String
+  details    String?
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  itemId     String
+  item       Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  reporterId String
+  reporter   User         @relation("ReporterReports", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([reporterId])
+  @@index([status])
 }
