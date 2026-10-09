@@ -1,0 +1,52 @@
+// Lost & Found Addis - Prisma Schema
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ItemStatus {
+  LOST
+  FOUND
+  CLAIMED
+  RETURNED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String   // Securely hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A user can report multiple items
+  items     Item[]
+}
+
+model Item {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  category    String
+  location    String
+  status      ItemStatus
+  imageUrl    String?
+  contactInfo String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Foreign key referencing User
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexes to optimize querying by status, category, and user
+  @@index([status])
+  @@index([category])
+  @@index([userId])
+}
